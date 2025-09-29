@@ -9,10 +9,12 @@ import dotenv from 'dotenv'
 import conversationRoutes from './routes/conversations'
 import voiceRoutes from './routes/voice'
 import userRoutes from './routes/users'
+import analyticsRoutes from './routes/analytics'
 
 // Import services
 import { VoiceWebSocketManager } from './services/websocket'
 import { initializeDatabase } from './db'
+import { backgroundTasks } from './services/background-tasks'
 
 // Load environment variables
 dotenv.config()
@@ -25,8 +27,9 @@ try {
   process.exit(1)
 }
 
-// Initialize WebSocket server
+// Initialize services
 const wsManager = new VoiceWebSocketManager(8001)
+backgroundTasks.start()
 
 const app = new Hono()
 
@@ -45,6 +48,36 @@ app.get('/health', (c) => {
     timestamp: new Date().toISOString(),
     version: '0.0.1',
     service: 'cyber-girlfriend-backend'
+  })
+})
+
+// System status endpoint
+app.get('/api/system/status', (c) => {
+  const backgroundTasksStatus = backgroundTasks.getServiceStatus()
+  const cacheStats = backgroundTasks.getCacheStatistics()
+  const clientInfo = wsManager.getConnectedClients()
+
+  return c.json({
+    success: true,
+    data: {
+      server: {
+        status: 'healthy',
+        uptime: process.uptime(),
+        memoryUsage: process.memoryUsage(),
+        version: '0.0.1'
+      },
+      backgroundTasks: backgroundTasksStatus,
+      cache: cacheStats,
+      websocket: {
+        status: 'active',
+        ...clientInfo
+      },
+      database: {
+        status: 'connected',
+        type: 'SQLite'
+      }
+    },
+    timestamp: new Date()
   })
 })
 
@@ -106,6 +139,7 @@ app.get('/api/realtime/metrics', (c) => {
 app.route('/api/conversations', conversationRoutes)
 app.route('/api/voice', voiceRoutes)
 app.route('/api/users', userRoutes)
+app.route('/api/analytics', analyticsRoutes)
 
 // 404 handler
 app.notFound((c) => {
