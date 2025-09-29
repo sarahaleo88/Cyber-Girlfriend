@@ -7,7 +7,8 @@ import {
   Conversation,
   Message,
   EmotionType,
-  UserPreferences
+  UserPreferences,
+  AudioDevice
 } from '../types';
 
 interface AppStore extends AppState, AppActions {}
@@ -41,6 +42,11 @@ export const useAppStore = create<AppStore>()(
         isRecording: false,
         isPlaying: false,
         currentEmotion: 'calm',
+        audioPermissionGranted: false,
+        audioInitialized: false,
+        microphoneLevel: 0,
+        speechDetected: false,
+        availableAudioDevices: [],
 
         // Actions
         setUser: (user: User) => set({ user }, false, 'setUser'),
@@ -118,12 +124,30 @@ export const useAppStore = create<AppStore>()(
             'updateUserPreferences'
           );
         },
+
+        // Audio actions
+        setAudioPermissionGranted: (granted: boolean) =>
+          set({ audioPermissionGranted: granted }, false, 'setAudioPermissionGranted'),
+
+        setAudioInitialized: (initialized: boolean) =>
+          set({ audioInitialized: initialized }, false, 'setAudioInitialized'),
+
+        setMicrophoneLevel: (level: number) =>
+          set({ microphoneLevel: level }, false, 'setMicrophoneLevel'),
+
+        setSpeechDetected: (detected: boolean) =>
+          set({ speechDetected: detected }, false, 'setSpeechDetected'),
+
+        setAvailableAudioDevices: (devices: AudioDevice[]) =>
+          set({ availableAudioDevices: devices }, false, 'setAvailableAudioDevices'),
       }),
       {
         name: 'cyber-girlfriend-store',
         partialize: (state) => ({
           user: state.user,
           conversations: state.conversations,
+          audioPermissionGranted: state.audioPermissionGranted,
+          availableAudioDevices: state.availableAudioDevices,
         }),
       }
     ),
@@ -141,3 +165,21 @@ export const useConnectionStatus = () => useAppStore((state) => state.isConnecte
 export const useRecordingStatus = () => useAppStore((state) => state.isRecording);
 export const usePlayingStatus = () => useAppStore((state) => state.isPlaying);
 export const useCurrentEmotion = () => useAppStore((state) => state.currentEmotion);
+
+// Audio selectors
+export const useAudioPermissionGranted = () => useAppStore((state) => state.audioPermissionGranted);
+export const useAudioInitialized = () => useAppStore((state) => state.audioInitialized);
+export const useMicrophoneLevel = () => useAppStore((state) => state.microphoneLevel);
+export const useSpeechDetected = () => useAppStore((state) => state.speechDetected);
+export const useAvailableAudioDevices = () => useAppStore((state) => state.availableAudioDevices);
+
+// Audio actions selectors
+export const useAudioActions = () => useAppStore((state) => ({
+  setAudioPermissionGranted: state.setAudioPermissionGranted,
+  setAudioInitialized: state.setAudioInitialized,
+  setMicrophoneLevel: state.setMicrophoneLevel,
+  setSpeechDetected: state.setSpeechDetected,
+  setAvailableAudioDevices: state.setAvailableAudioDevices,
+  setRecording: state.setRecording,
+  setPlaying: state.setPlaying,
+}));

@@ -18,6 +18,10 @@ export interface VoiceSettings {
   speed: number; // 0.5 - 2.0
   voice: VoiceType;
   volume: number; // 0.0 - 1.0
+  microphoneGain: number; // 0.0 - 2.0
+  vadThreshold: number; // -60 to 0 dB
+  selectedMicrophone?: string; // device ID
+  selectedSpeaker?: string; // device ID
 }
 
 export interface PersonalityTraits {
@@ -64,6 +68,24 @@ export interface AppState {
   isRecording: boolean;
   isPlaying: boolean;
   currentEmotion: EmotionType;
+  audioPermissionGranted: boolean;
+  audioInitialized: boolean;
+  microphoneLevel: number;
+  speechDetected: boolean;
+  availableAudioDevices: AudioDevice[];
+}
+
+export interface AudioDevice {
+  deviceId: string;
+  label: string;
+  kind: 'audioinput' | 'audiooutput';
+}
+
+export interface AudioVisualizationData {
+  frequencyData: Uint8Array;
+  timeData: Uint8Array;
+  rmsLevel: number;
+  isSpeechDetected: boolean;
 }
 
 export interface AppActions {
@@ -76,4 +98,9 @@ export interface AppActions {
   setPlaying: (playing: boolean) => void;
   setEmotion: (emotion: EmotionType) => void;
   updateUserPreferences: (preferences: Partial<UserPreferences>) => void;
+  setAudioPermissionGranted: (granted: boolean) => void;
+  setAudioInitialized: (initialized: boolean) => void;
+  setMicrophoneLevel: (level: number) => void;
+  setSpeechDetected: (detected: boolean) => void;
+  setAvailableAudioDevices: (devices: AudioDevice[]) => void;
 }

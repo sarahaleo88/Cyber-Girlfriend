@@ -51,12 +51,54 @@ app.get('/health', (c) => {
 // WebSocket status endpoint
 app.get('/ws/status', (c) => {
   const clientInfo = wsManager.getConnectedClients()
+  const realtimeMetrics = wsManager.getRealtimeMetrics()
   return c.json({
     websocket: {
       status: 'active',
       ...clientInfo,
     },
+    realtime: {
+      metrics: realtimeMetrics,
+    },
     timestamp: new Date().toISOString(),
+  })
+})
+
+// Realtime session management endpoints
+app.get('/api/realtime/sessions', (c) => {
+  const sessions = wsManager.getAllRealtimeSessions()
+  return c.json({
+    success: true,
+    data: { sessions },
+    timestamp: new Date(),
+  })
+})
+
+app.get('/api/realtime/sessions/:clientId', (c) => {
+  const clientId = c.req.param('clientId')
+  const sessionInfo = wsManager.getRealtimeSessionInfo(clientId)
+
+  if (!sessionInfo) {
+    return c.json({
+      success: false,
+      error: 'Session not found',
+      timestamp: new Date(),
+    }, 404)
+  }
+
+  return c.json({
+    success: true,
+    data: sessionInfo,
+    timestamp: new Date(),
+  })
+})
+
+app.get('/api/realtime/metrics', (c) => {
+  const metrics = wsManager.getRealtimeMetrics()
+  return c.json({
+    success: true,
+    data: metrics,
+    timestamp: new Date(),
   })
 })
 
