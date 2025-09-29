@@ -44,13 +44,14 @@ export interface Message {
   id: string;
   content: string;
   timestamp: Date;
-  sender: 'user' | 'ai';
+  sender: 'user' | 'ai' | 'system';
   type: 'text' | 'audio';
+  status?: 'sending' | 'sent' | 'received' | 'error';
   audioUrl?: string;
   emotion?: EmotionType;
 }
 
-export type EmotionType = 'happy' | 'sad' | 'excited' | 'calm' | 'thoughtful' | 'playful';
+export type EmotionType = 'happy' | 'sad' | 'excited' | 'calm' | 'thoughtful' | 'playful' | 'friendly';
 
 export interface Conversation {
   id: string;

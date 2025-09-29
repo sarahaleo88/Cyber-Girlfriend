@@ -21,12 +21,13 @@ const createConversation = (): Conversation => ({
   lastActivityAt: new Date(),
 });
 
-const createMessage = (content: string, sender: 'user' | 'ai', type: 'text' | 'audio' = 'text'): Message => ({
+const createMessage = (content: string, sender: 'user' | 'ai' | 'system', type: 'text' | 'audio' = 'text'): Message => ({
   id: crypto.randomUUID(),
   content,
   sender,
   type,
   timestamp: new Date(),
+  status: sender === 'user' ? 'sent' : 'received',
   emotion: sender === 'ai' ? 'friendly' as EmotionType : undefined,
 });
 
@@ -74,6 +75,9 @@ export const useAppStore = create<AppStore>()(
           }
           if (messageData.emotion) {
             message.emotion = messageData.emotion;
+          }
+          if (messageData.status) {
+            message.status = messageData.status;
           }
 
           set(
