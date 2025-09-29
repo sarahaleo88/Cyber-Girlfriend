@@ -3,9 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   useRecordingStatus,
   usePlayingStatus,
+  useConversationState,
   useAudioPermissionGranted,
   useAudioInitialized,
-  useSpeechDetected
+  useSpeechDetected,
+  useAudioActions
 } from '../store/appStore';
 import { useAudio } from '../hooks/useAudio';
 import VoiceVisualizer from './VoiceVisualizer';
@@ -26,15 +28,14 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
 }) => {
   const isRecording = useRecordingStatus();
   const isPlaying = usePlayingStatus();
+  const conversationState = useConversationState();
   const isPermissionGranted = useAudioPermissionGranted();
   const isInitialized = useAudioInitialized();
   const speechDetected = useSpeechDetected();
+  const { setConversationState } = useAudioActions();
 
   const [showSettings, setShowSettings] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const [pressStartTime, setPressStartTime] = useState<number | null>(null);
-
-  const pressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
     requestPermission,
@@ -55,93 +56,124 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
     large: 'w-8 h-8'
   };
 
-  // Handle press and hold for recording
-  const handleMouseDown = useCallback(async () => {
-    if (isRecording || isPlaying) return;
+  // Single click toggle handler for conversation states
+  const handleToggleConversation = useCallback(async () => {
+    try {
+      switch (conversationState) {
+        case 'idle':
+          // Start conversation flow
+          setConversationState('connecting');
 
-    setPressStartTime(Date.now());
+          // Request permissions if needed
+          if (!isPermissionGranted) {
+            await requestPermission();
+          }
 
-    // Start a timer to begin recording after 200ms hold
-    pressTimerRef.current = setTimeout(async () => {
-      try {
-        if (!isPermissionGranted) {
-          await requestPermission();
-        }
-        await startRecording();
-      } catch (err) {
-        console.error('Failed to start recording:', err);
+          // Move to active state once connected
+          setConversationState('active');
+          await startRecording();
+          break;
+
+        case 'connecting':
+          // Cancel connection attempt
+          setConversationState('idle');
+          break;
+
+        case 'active':
+          // Stop recording and end conversation
+          await stopRecording();
+          setConversationState('idle');
+          break;
+
+        case 'thinking':
+          // Allow manual interruption during AI thinking
+          setConversationState('idle');
+          break;
+
+        default:
+          setConversationState('idle');
       }
-    }, 200);
-  }, [isRecording, isPlaying, isPermissionGranted, requestPermission, startRecording]);
-
-  const handleMouseUp = useCallback(() => {
-    const pressDuration = pressStartTime ? Date.now() - pressStartTime : 0;
-
-    // Clear the timer
-    if (pressTimerRef.current) {
-      clearTimeout(pressTimerRef.current);
-      pressTimerRef.current = null;
+    } catch (err) {
+      console.error('Failed to toggle conversation:', err);
+      setConversationState('idle');
     }
+  }, [conversationState, setConversationState, isPermissionGranted, requestPermission, startRecording, stopRecording]);
 
-    setPressStartTime(null);
-
-    // If we were recording, stop it
-    if (isRecording) {
-      stopRecording();
-    }
-
-    // If it was a quick press (< 200ms), show settings
-    if (pressDuration < 200 && !isRecording) {
+  // Handle right-click or long press for settings
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    if (conversationState === 'idle') {
       setShowSettings(true);
     }
-  }, [isRecording, pressStartTime, stopRecording]);
+  }, [conversationState]);
 
-  // Handle mouse leave (cancel recording if mouse leaves while pressed)
-  const handleMouseLeave = useCallback(() => {
-    if (pressTimerRef.current) {
-      clearTimeout(pressTimerRef.current);
-      pressTimerRef.current = null;
-    }
-
-    if (isRecording) {
-      stopRecording();
-    }
-
-    setPressStartTime(null);
-    setIsHovered(false);
-  }, [isRecording, stopRecording]);
-
-  // Get button state for styling
+  // Get button state for styling based on conversation state
   const getButtonState = () => {
-    if (isRecording) return 'recording';
-    if (isPlaying) return 'playing';
-    if (!isPermissionGranted) return 'permission-needed';
+    // Handle error states first
     if (!isInitialized) return 'initializing';
-    return 'idle';
+    if (!isPermissionGranted && conversationState !== 'idle') return 'permission-needed';
+
+    // Use conversation state as primary state
+    switch (conversationState) {
+      case 'idle':
+        return 'idle';
+      case 'connecting':
+        return 'connecting';
+      case 'active':
+        return isRecording ? 'recording' : 'active';
+      case 'thinking':
+        return 'thinking';
+      default:
+        return 'idle';
+    }
   };
 
   const getButtonColor = () => {
     const state = getButtonState();
     switch (state) {
+      case 'idle':
+        return 'bg-gray-500 hover:bg-gray-600 shadow-gray-500/50';
+      case 'connecting':
+        return 'bg-cyan-500 hover:bg-cyan-600 shadow-cyan-500/50';
       case 'recording':
         return speechDetected
-          ? 'bg-green-500 hover:bg-green-600 shadow-green-500/50'
-          : 'bg-red-500 hover:bg-red-600 shadow-red-500/50';
-      case 'playing':
-        return 'bg-cyan-500 hover:bg-cyan-600 shadow-cyan-500/50';
+          ? 'bg-gradient-to-r from-cyan-500 to-pink-500 hover:from-cyan-600 hover:to-pink-600 shadow-cyan-500/50'
+          : 'bg-gradient-to-r from-cyan-400 to-pink-400 hover:from-cyan-500 hover:to-pink-500 shadow-cyan-400/50';
+      case 'active':
+        return 'bg-gradient-to-r from-cyan-500 to-pink-500 hover:from-cyan-600 hover:to-pink-600 shadow-cyan-500/50';
+      case 'thinking':
+        return 'bg-gradient-to-r from-cyan-500 to-pink-500 hover:from-cyan-600 hover:to-pink-600 shadow-pink-500/50';
       case 'permission-needed':
         return 'bg-yellow-500 hover:bg-yellow-600 shadow-yellow-500/50';
       case 'initializing':
-        return 'bg-gray-500 shadow-gray-500/50';
-      case 'idle':
+        return 'bg-gray-400 shadow-gray-400/50';
       default:
-        return 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/50';
+        return 'bg-gray-500 hover:bg-gray-600 shadow-gray-500/50';
     }
   };
 
   const getButtonIcon = () => {
     const state = getButtonState();
     switch (state) {
+      case 'idle':
+        return (
+          <svg className={`${iconSizeClasses[size]} text-white`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+          </svg>
+        );
+      case 'connecting':
+        return (
+          <motion.svg
+            className={`${iconSizeClasses[size]} text-white`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </motion.svg>
+        );
       case 'recording':
         return (
           <motion.div
@@ -155,11 +187,54 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
             }}
           />
         );
-      case 'playing':
+      case 'active':
         return (
-          <svg className={`${iconSizeClasses[size]} text-white`} fill="currentColor" viewBox="0 0 24 24">
-            <path d="M8 5v14l11-7z"/>
-          </svg>
+          <motion.svg
+            className={`${iconSizeClasses[size]} text-white`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            animate={{
+              scale: [1, 1.1, 1],
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: 'easeInOut'
+            }}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+          </motion.svg>
+        );
+      case 'thinking':
+        return (
+          <motion.div
+            className="relative flex items-center justify-center"
+          >
+            <motion.div
+              className={`${iconSizeClasses[size]} bg-white rounded-full opacity-20`}
+              animate={{
+                scale: [1, 2, 1],
+                opacity: [0.2, 0.1, 0.2],
+              }}
+              transition={{
+                duration: 1.5,
+                repeat: Infinity,
+                ease: 'easeOut'
+              }}
+            />
+            <motion.div
+              className={`absolute ${iconSizeClasses[size]} bg-white rounded-full`}
+              animate={{
+                scale: [0.8, 1, 0.8],
+              }}
+              transition={{
+                duration: 1,
+                repeat: Infinity,
+                ease: 'easeInOut'
+              }}
+            />
+          </motion.div>
         );
       case 'permission-needed':
         return (
@@ -192,16 +267,22 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
   const getTooltipText = () => {
     const state = getButtonState();
     switch (state) {
+      case 'idle':
+        return 'Click to start conversation';
+      case 'connecting':
+        return 'Connecting... Click to cancel';
       case 'recording':
-        return 'Recording... Release to stop';
-      case 'playing':
-        return 'Playing audio response';
+        return 'Recording... Click to stop';
+      case 'active':
+        return 'Active conversation - Click to end';
+      case 'thinking':
+        return 'AI thinking... Click to interrupt';
       case 'permission-needed':
         return 'Click to grant microphone permission';
       case 'initializing':
         return 'Initializing audio system...';
       default:
-        return 'Hold to record, click for settings';
+        return 'Click to start conversation';
     }
   };
 
@@ -230,31 +311,56 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         className={`
           ${sizeClasses[size]}
           ${getButtonColor()}
-          rounded-full shadow-lg transition-all duration-200
+          rounded-full shadow-lg transition-all duration-300
           focus:outline-none focus:ring-4 focus:ring-opacity-50
           active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
           ${isHovered ? 'shadow-xl' : 'shadow-lg'}
         `}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
+        onClick={handleToggleConversation}
+        onContextMenu={handleContextMenu}
         onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={handleMouseLeave}
-        onTouchStart={handleMouseDown}
-        onTouchEnd={handleMouseUp}
+        onMouseLeave={() => setIsHovered(false)}
         disabled={getButtonState() === 'initializing'}
         animate={{
-          scale: isRecording ? [1, 1.05, 1] : 1,
-          boxShadow: isRecording
-            ? [
-                '0 10px 25px rgba(239, 68, 68, 0.5)',
-                '0 15px 35px rgba(239, 68, 68, 0.7)',
-                '0 10px 25px rgba(239, 68, 68, 0.5)',
-              ]
-            : undefined,
+          // Breathing animation for active states
+          scale: conversationState === 'active' || conversationState === 'thinking'
+            ? [1, 1.05, 1]
+            : conversationState === 'connecting'
+            ? [1, 1.02, 1]
+            : 1,
+          // Enhanced shadow effects
+          boxShadow: (() => {
+            switch (conversationState) {
+              case 'connecting':
+                return [
+                  '0 10px 25px rgba(0, 255, 255, 0.3)',
+                  '0 15px 35px rgba(0, 255, 255, 0.6)',
+                  '0 10px 25px rgba(0, 255, 255, 0.3)',
+                ];
+              case 'active':
+              case 'recording':
+                return [
+                  '0 10px 25px rgba(0, 255, 255, 0.4)',
+                  '0 15px 35px rgba(255, 0, 255, 0.4)',
+                  '0 10px 25px rgba(0, 255, 255, 0.4)',
+                ];
+              case 'thinking':
+                return [
+                  '0 10px 25px rgba(255, 0, 255, 0.4)',
+                  '0 20px 40px rgba(255, 0, 255, 0.6)',
+                  '0 10px 25px rgba(255, 0, 255, 0.4)',
+                ];
+              default:
+                return undefined;
+            }
+          })(),
         }}
         transition={{
-          duration: 1,
-          repeat: isRecording ? Infinity : 0,
+          duration: conversationState === 'connecting' ? 0.8 :
+                   conversationState === 'active' || conversationState === 'thinking' ? 2.5 :
+                   0.3,
+          repeat: conversationState !== 'idle' ? Infinity : 0,
+          ease: 'easeInOut'
         }}
       >
         {getButtonIcon()}

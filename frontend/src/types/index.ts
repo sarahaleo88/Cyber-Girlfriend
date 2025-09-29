@@ -53,6 +53,8 @@ export interface Message {
 
 export type EmotionType = 'happy' | 'sad' | 'excited' | 'calm' | 'thoughtful' | 'playful' | 'friendly';
 
+export type ConversationState = 'idle' | 'connecting' | 'active' | 'thinking';
+
 export interface Conversation {
   id: string;
   title: string;
@@ -68,6 +70,7 @@ export interface AppState {
   isConnected: boolean;
   isRecording: boolean;
   isPlaying: boolean;
+  conversationState: ConversationState;
   currentEmotion: EmotionType;
   audioPermissionGranted: boolean;
   audioInitialized: boolean;
@@ -97,6 +100,7 @@ export interface AppActions {
   setConnected: (connected: boolean) => void;
   setRecording: (recording: boolean) => void;
   setPlaying: (playing: boolean) => void;
+  setConversationState: (state: ConversationState) => void;
   setEmotion: (emotion: EmotionType) => void;
   updateUserPreferences: (preferences: Partial<UserPreferences>) => void;
   setAudioPermissionGranted: (granted: boolean) => void;

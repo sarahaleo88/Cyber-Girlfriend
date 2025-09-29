@@ -7,6 +7,7 @@ import {
   Conversation,
   Message,
   EmotionType,
+  ConversationState,
   UserPreferences,
   AudioDevice
 } from '../types';
@@ -42,6 +43,7 @@ export const useAppStore = create<AppStore>()(
         isConnected: false,
         isRecording: false,
         isPlaying: false,
+        conversationState: 'idle',
         currentEmotion: 'calm',
         audioPermissionGranted: false,
         audioInitialized: false,
@@ -108,6 +110,8 @@ export const useAppStore = create<AppStore>()(
 
         setPlaying: (playing: boolean) => set({ isPlaying: playing }, false, 'setPlaying'),
 
+        setConversationState: (state) => set({ conversationState: state }, false, 'setConversationState'),
+
         setEmotion: (emotion: EmotionType) => set({ currentEmotion: emotion }, false, 'setEmotion'),
 
         updateUserPreferences: (preferences: Partial<UserPreferences>) => {
@@ -168,6 +172,7 @@ export const useConversations = () => useAppStore((state) => state.conversations
 export const useConnectionStatus = () => useAppStore((state) => state.isConnected);
 export const useRecordingStatus = () => useAppStore((state) => state.isRecording);
 export const usePlayingStatus = () => useAppStore((state) => state.isPlaying);
+export const useConversationState = () => useAppStore((state) => state.conversationState);
 export const useCurrentEmotion = () => useAppStore((state) => state.currentEmotion);
 
 // Audio selectors
@@ -186,4 +191,5 @@ export const useAudioActions = () => useAppStore((state) => ({
   setAvailableAudioDevices: state.setAvailableAudioDevices,
   setRecording: state.setRecording,
   setPlaying: state.setPlaying,
+  setConversationState: state.setConversationState,
 }));
