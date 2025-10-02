@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "bun --hot src/index.ts",
     "start": "bun src/index.ts",
-    "build": "bun build src/index.ts --outdir ./dist",
+    "build": "bun build src/index.ts --outdir ./dist --target=bun",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write \"src/**/*.{ts,js}\"",
     "db:generate": "drizzle-kit generate:sqlite",
