@@ -1,6 +1,6 @@
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
+import { Database } from 'bun:sqlite'
+import { drizzle } from 'drizzle-orm/bun-sqlite'
+import { migrate } from 'drizzle-orm/bun-sqlite/migrator'
 import * as schema from './schema'
 import path from 'path'
 import fs from 'fs'
@@ -13,7 +13,7 @@ if (!fs.existsSync(dataDir)) {
 
 // Database connection
 const sqlite = new Database(path.join(dataDir, 'cyber-girlfriend.db'))
-sqlite.pragma('journal_mode = WAL')
+sqlite.exec('PRAGMA journal_mode = WAL')
 
 // Create Drizzle database instance
 export const db = drizzle(sqlite, { schema })
@@ -37,7 +37,7 @@ export function runMigrations() {
 // Database health check
 export function checkDatabaseHealth() {
   try {
-    const result = sqlite.prepare('SELECT 1 as health').get()
+    const result = sqlite.query('SELECT 1 as health').get() as { health: number } | null
     return result?.health === 1
   } catch (error) {
     console.error('Database health check failed:', error)
