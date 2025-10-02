@@ -1,0 +1,39 @@
+{
+  "name": "cyber-girlfriend-backend",
+  "version": "0.0.1",
+  "description": "Backend server for Cyber Girlfriend AI voice companion",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot src/index.ts",
+    "start": "bun src/index.ts",
+    "build": "bun build src/index.ts --outdir ./dist --target=bun",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write \"src/**/*.{ts,js}\"",
+    "db:generate": "drizzle-kit generate:sqlite",
+    "db:migrate": "bun src/db/migrate.ts",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@types/uuid": "^9.0.7",
+    "@types/ws": "^8.5.10",
+    "dotenv": "^16.3.1",
+    "drizzle-orm": "^0.29.0",
+    "hono": "^3.12.0",
+    "openai": "^4.57.0",
+    "uuid": "^9.0.1",
+    "ws": "^8.16.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "bun-types": "latest",
+    "drizzle-kit": "^0.20.7",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.4"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
