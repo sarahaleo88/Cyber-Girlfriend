@@ -1,7 +1,8 @@
 import { eq, desc, asc, and, or, like, sql, count, gte, lte } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 import { db } from '../db/index'
-import { conversations, messages, users, userPreferences } from '../db/schema'
-import type { Conversation, Message, NewConversation, NewMessage } from '../db/schema'
+import { conversations, messages } from '../db/schema'
+import type { Conversation, Message } from '../db/schema'
 
 export interface ConversationWithStats extends Conversation {
   messageCount?: number
@@ -23,7 +24,7 @@ export interface MessageFilter {
   conversationId: string
   sender?: 'user' | 'ai'
   type?: 'text' | 'audio'
-  emotion?: string
+  emotion?: NonNullable<Message['emotion']>
   limit?: number
   offset?: number
 }
@@ -38,16 +39,41 @@ export interface ExportOptions {
   }
 }
 
+type CreateConversationInput = {
+  userId: string
+  title: string
+  metadata?: string | null
+  startedAt?: Date
+  lastActivityAt?: Date
+  isActive?: boolean
+}
+
+type CreateMessageInput = {
+  conversationId: string
+  content: string
+  sender: 'user' | 'ai'
+  type?: 'text' | 'audio'
+  audioUrl?: string | null
+  emotion?: NonNullable<Message['emotion']>
+  metadata?: string | null
+  timestamp?: Date
+}
+
+const formatDate = (value: Date | null | undefined): string =>
+  value ? value.toLocaleString() : 'N/A'
+
 export class DataPersistenceService {
   // Conversation Operations
-  async createConversation(data: NewConversation): Promise<Conversation> {
+  async createConversation(data: CreateConversationInput): Promise<Conversation> {
     try {
       const conversation = await db.insert(conversations).values({
         id: crypto.randomUUID(),
-        ...data,
-        startedAt: data.startedAt || new Date(),
-        lastActivityAt: data.lastActivityAt || new Date(),
-        isActive: data.isActive !== undefined ? data.isActive : true,
+        userId: data.userId,
+        title: data.title,
+        metadata: data.metadata ?? null,
+        startedAt: data.startedAt ?? new Date(),
+        lastActivityAt: data.lastActivityAt ?? new Date(),
+        isActive: data.isActive ?? true,
       }).returning()
 
       return conversation[0]
@@ -109,7 +135,7 @@ export class DataPersistenceService {
 
   async getConversations(filter: ConversationFilter): Promise<ConversationWithStats[]> {
     try {
-      let query = db.select({
+      const selectFields = {
         id: conversations.id,
         userId: conversations.userId,
         title: conversations.title,
@@ -118,22 +144,18 @@ export class DataPersistenceService {
         isActive: conversations.isActive,
         metadata: conversations.metadata,
         messageCount: count(messages.id)
-      })
-      .from(conversations)
-      .leftJoin(messages, eq(conversations.id, messages.conversationId))
-      .where(eq(conversations.userId, filter.userId))
-      .groupBy(conversations.id)
+      }
 
-      // Apply filters
-      const conditions: any[] = [eq(conversations.userId, filter.userId)]
+      const baseQuery = db.select(selectFields)
+        .from(conversations)
+        .leftJoin(messages, eq(conversations.id, messages.conversationId))
+
+      const conditions: SQL[] = [eq(conversations.userId, filter.userId)]
 
       if (filter.search) {
-        conditions.push(
-          or(
-            like(conversations.title, `%${filter.search}%`),
-            like(conversations.metadata, `%${filter.search}%`)
-          )
-        )
+        const searchTerm = `%${filter.search}%`
+        const searchCondition: SQL = sql`(${conversations.title} LIKE ${searchTerm} OR COALESCE(${conversations.metadata}, '') LIKE ${searchTerm})`
+        conditions.push(searchCondition)
       }
 
       if (filter.dateFrom) {
@@ -145,20 +167,21 @@ export class DataPersistenceService {
       }
 
       if (filter.status) {
-        conditions.push(eq(conversations.isActive, filter.status === 'active'))
+        if (filter.status === 'active') {
+          conditions.push(eq(conversations.isActive, true))
+        } else {
+          conditions.push(eq(conversations.isActive, false))
+        }
       }
 
-      if (conditions.length > 1) {
-        query = query.where(and(...conditions))
-      }
+      const whereCondition = conditions.length === 1 ? conditions[0]! : and(...conditions)
 
-      // Apply ordering, limit, and offset
-      query = query
+      const result = await baseQuery
+        .where(whereCondition)
+        .groupBy(conversations.id)
         .orderBy(desc(conversations.lastActivityAt))
-        .limit(filter.limit || 50)
-        .offset(filter.offset || 0)
-
-      const result = await query
+        .limit(filter.limit ?? 50)
+        .offset(filter.offset ?? 0)
 
       return result.map(row => ({
         id: row.id,
@@ -181,7 +204,6 @@ export class DataPersistenceService {
       const result = await db.update(conversations)
         .set({
           ...updates,
-          updatedAt: new Date(),
         })
         .where(eq(conversations.id, id))
         .returning()
@@ -200,12 +222,16 @@ export class DataPersistenceService {
   async deleteConversation(id: string): Promise<void> {
     try {
       // Delete messages first (cascade should handle this, but being explicit)
-      await db.delete(messages).where(eq(messages.conversationId, id))
+      await db.delete(messages)
+        .where(eq(messages.conversationId, id))
+        .run()
 
       // Delete conversation
-      const result = await db.delete(conversations).where(eq(conversations.id, id))
+      const deleted = await db.delete(conversations)
+        .where(eq(conversations.id, id))
+        .returning({ id: conversations.id })
 
-      if (!result.changes) {
+      if (deleted.length === 0) {
         throw new Error('Conversation not found')
       }
     } catch (error) {
@@ -215,18 +241,25 @@ export class DataPersistenceService {
   }
 
   // Message Operations
-  async createMessage(data: NewMessage): Promise<Message> {
+  async createMessage(data: CreateMessageInput): Promise<Message> {
     try {
       const message = await db.insert(messages).values({
         id: crypto.randomUUID(),
-        ...data,
-        timestamp: data.timestamp || new Date(),
+        conversationId: data.conversationId,
+        content: data.content,
+        sender: data.sender,
+        type: data.type ?? 'text',
+        audioUrl: data.audioUrl ?? null,
+        emotion: data.emotion ?? null,
+        metadata: data.metadata ?? null,
+        timestamp: data.timestamp ?? new Date(),
       }).returning()
 
       // Update conversation last activity
       await db.update(conversations)
-        .set({ lastActivityAt: new Date() })
+        .set({ lastActivityAt: message[0].timestamp ?? new Date() })
         .where(eq(conversations.id, data.conversationId))
+        .run()
 
       return message[0]
     } catch (error) {
@@ -237,12 +270,10 @@ export class DataPersistenceService {
 
   async getMessages(filter: MessageFilter): Promise<Message[]> {
     try {
-      let query = db.select()
+      const baseQuery = db.select()
         .from(messages)
-        .where(eq(messages.conversationId, filter.conversationId))
 
-      // Apply filters
-      const conditions: any[] = [eq(messages.conversationId, filter.conversationId)]
+      const conditions: SQL[] = [eq(messages.conversationId, filter.conversationId)]
 
       if (filter.sender) {
         conditions.push(eq(messages.sender, filter.sender))
@@ -256,17 +287,13 @@ export class DataPersistenceService {
         conditions.push(eq(messages.emotion, filter.emotion))
       }
 
-      if (conditions.length > 1) {
-        query = query.where(and(...conditions))
-      }
+      const whereCondition = conditions.length === 1 ? conditions[0]! : and(...conditions)
 
-      // Apply ordering, limit, and offset
-      query = query
+      return await baseQuery
+        .where(whereCondition)
         .orderBy(asc(messages.timestamp))
-        .limit(filter.limit || 100)
-        .offset(filter.offset || 0)
-
-      return await query
+        .limit(filter.limit ?? 100)
+        .offset(filter.offset ?? 0)
     } catch (error) {
       console.error('Failed to get messages:', error)
       throw new Error('Failed to get messages')
@@ -275,9 +302,11 @@ export class DataPersistenceService {
 
   async deleteMessage(id: string): Promise<void> {
     try {
-      const result = await db.delete(messages).where(eq(messages.id, id))
+      const deleted = await db.delete(messages)
+        .where(eq(messages.id, id))
+        .returning({ id: messages.id })
 
-      if (!result.changes) {
+      if (deleted.length === 0) {
         throw new Error('Message not found')
       }
     } catch (error) {
@@ -349,13 +378,15 @@ export class DataPersistenceService {
       // Filter messages by date if specified
       let filteredMessages = messages
       if (options.dateFilter?.from) {
+        const from = options.dateFilter.from
         filteredMessages = filteredMessages.filter(m =>
-          m.timestamp >= options.dateFilter!.from!
+          m.timestamp ? m.timestamp >= from! : false
         )
       }
       if (options.dateFilter?.to) {
+        const to = options.dateFilter.to
         filteredMessages = filteredMessages.filter(m =>
-          m.timestamp <= options.dateFilter!.to!
+          m.timestamp ? m.timestamp <= to! : false
         )
       }
 
@@ -407,15 +438,15 @@ export class DataPersistenceService {
 
     if (options.includeMetadata) {
       markdown += `**Conversation ID:** ${conversation.id}\n`
-      markdown += `**Started:** ${conversation.startedAt.toLocaleString()}\n`
-      markdown += `**Last Activity:** ${conversation.lastActivityAt.toLocaleString()}\n`
+      markdown += `**Started:** ${formatDate(conversation.startedAt)}\n`
+      markdown += `**Last Activity:** ${formatDate(conversation.lastActivityAt)}\n`
       markdown += `**Messages:** ${conversation.messageCount || messages.length}\n\n`
     }
 
     markdown += `---\n\n`
 
     messages.forEach(msg => {
-      const timestamp = msg.timestamp.toLocaleString()
+      const timestamp = formatDate(msg.timestamp)
       const sender = msg.sender === 'user' ? '👤 You' : '🤖 Assistant'
       const emotion = msg.emotion ? ` (${msg.emotion})` : ''
 
@@ -442,13 +473,13 @@ export class DataPersistenceService {
     text += `${'='.repeat(conversation.title.length)}\n\n`
 
     if (options.includeMetadata) {
-      text += `Conversation started: ${conversation.startedAt.toLocaleString()}\n`
-      text += `Last activity: ${conversation.lastActivityAt.toLocaleString()}\n`
+      text += `Conversation started: ${formatDate(conversation.startedAt)}\n`
+      text += `Last activity: ${formatDate(conversation.lastActivityAt)}\n`
       text += `Total messages: ${conversation.messageCount || messages.length}\n\n`
     }
 
     messages.forEach(msg => {
-      const timestamp = msg.timestamp.toLocaleString()
+      const timestamp = formatDate(msg.timestamp)
       const sender = msg.sender === 'user' ? 'You' : 'Assistant'
       const emotion = msg.emotion ? ` (${msg.emotion})` : ''
 
@@ -534,15 +565,16 @@ export class DataPersistenceService {
       const cutoffDate = new Date()
       cutoffDate.setDate(cutoffDate.getDate() - daysOld)
 
-      const result = await db.update(conversations)
+      const archived = await db.update(conversations)
         .set({ isActive: false })
         .where(and(
           eq(conversations.userId, userId),
           lte(conversations.lastActivityAt, cutoffDate),
           eq(conversations.isActive, true)
         ))
+        .returning({ id: conversations.id })
 
-      return result.changes || 0
+      return archived.length
     } catch (error) {
       console.error('Failed to archive old conversations:', error)
       throw new Error('Failed to archive old conversations')

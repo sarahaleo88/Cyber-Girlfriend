@@ -4,12 +4,30 @@ An AI-powered voice companion application built with React, TypeScript, and Bun.
 
 ## Features
 
-- **Real-time Voice Chat**: WebSocket-based voice communication
+### Core Features
+- **Real-time Voice Chat**: WebSocket-based voice communication with OpenAI Realtime API
+- **AI Personality System**: Choose from 3 distinct personalities (Friendly, Professional, Playful)
 - **Emotion Recognition**: AI-powered emotion detection and response
-- **Personalized Experience**: Customizable personality traits and voice settings
-- **Modern UI**: Beautiful animations with Framer Motion and TailwindCSS
+- **Conversation History**: Persistent storage with SQLite database
+- **Data Export**: Export conversations in JSON, Markdown, or Text formats
+
+### PWA Features
+- **Progressive Web App**: Install on any device for native-like experience
+- **Offline Support**: Continue viewing conversations without internet
+- **Service Worker**: Smart caching for fast loading and offline functionality
+- **Push Notifications**: Get notified of new messages (optional)
+
+### UI/UX
+- **Modern Interface**: Beautiful animations with Framer Motion and TailwindCSS
+- **Responsive Design**: Works seamlessly on desktop, tablet, and mobile
+- **Voice Visualizer**: Real-time audio waveform during conversations
+- **Settings Panel**: Customize personality, audio, and privacy settings
+
+### Technical
 - **High Performance**: Bun runtime with Hono web framework
 - **Type Safety**: Full TypeScript support throughout the stack
+- **WebSocket Communication**: Real-time bidirectional communication
+- **Edge Deployment**: Ready for Cloudflare Workers deployment
 
 ## Tech Stack
 
@@ -200,17 +218,21 @@ Example WebSocket message:
 
 ### Current Implementation
 
-- ✅ Complete project structure
-- ✅ React 18 + TypeScript frontend with Vite
-- ✅ TailwindCSS styling with custom cyber theme
-- ✅ Zustand state management
-- ✅ Framer Motion animations
-- ✅ Bun + Hono backend server
-- ✅ SQLite + Drizzle ORM database
-- ✅ WebSocket server for real-time communication
-- ✅ Development tooling (ESLint, Prettier)
-- ✅ Environment configuration
-- ✅ Development scripts and automation
+#### ✅ Completed Features
+- **Project Setup**: Complete development environment with React 18, TypeScript, Vite
+- **UI Foundation**: TailwindCSS styling with custom cyber theme, Framer Motion animations
+- **State Management**: Zustand for lightweight, efficient state handling
+- **Backend Server**: Bun + Hono for high-performance API and WebSocket handling
+- **Database**: SQLite + Drizzle ORM with full schema and migrations
+- **Web Audio API**: Complete microphone capture, audio processing, and playback
+- **Voice Button**: Animated button with state machine (idle → connecting → active)
+- **Conversation Interface**: Real-time message display with typing indicators
+- **AI Personality System**: 3 personality presets with dynamic prompt management
+- **Data Export**: Export conversations in JSON, Markdown, and Text formats
+- **PWA Implementation**: Service worker, manifest, offline support, install prompts
+- **OpenAI Integration**: Realtime API proxy with WebSocket communication
+- **Settings Panel**: Comprehensive settings for personality, audio, and privacy
+- **Development Tooling**: ESLint, Prettier, TypeScript strict mode
 
 ### Mock Features (Development Mode)
 
@@ -285,9 +307,56 @@ For production deployment, integrate with:
 
 MIT License - see LICENSE file for details.
 
+## New Features Guide
+
+### Using AI Personalities
+
+1. Click the Settings icon (⚙️) in the header
+2. Navigate to the "Personality" tab
+3. Choose from three personalities:
+   - **Friendly Companion**: Warm, supportive, empathetic
+   - **Professional Assistant**: Formal, efficient, task-focused
+   - **Playful Friend**: Casual, humorous, energetic
+4. Click "Preview" to see a sample response
+5. Your selection is saved automatically
+
+### Exporting Conversations
+
+1. Open Settings → Privacy tab
+2. Click "Export Data"
+3. Choose your format:
+   - **JSON**: Structured data for importing elsewhere
+   - **Markdown**: Human-readable with formatting
+   - **Text**: Simple plain text
+4. Select options (metadata, timestamps)
+5. Click "Export" to download
+
+### Installing as PWA
+
+1. Use the app for a few seconds
+2. An install prompt will appear
+3. Click "Install" to add to your device
+4. Launch from home screen/desktop
+5. Enjoy offline support and faster loading
+
+### Using Offline Mode
+
+- Conversations are cached automatically
+- View history without internet
+- Messages queue when offline
+- Auto-sync when connection restored
+
+## Additional Documentation
+
+- **[TESTING.md](./TESTING.md)**: Comprehensive testing guide
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)**: Production deployment instructions
+- **[GitHub Issues](https://github.com/sarahaleo88/Cyber-Girlfriend/issues)**: Feature requests and bug reports
+
 ## Support
 
 For issues and questions:
 - Check the troubleshooting section above
+- Review [TESTING.md](./TESTING.md) for common issues
+- Check [GitHub Issues](https://github.com/sarahaleo88/Cyber-Girlfriend/issues)
 - Review the project structure and API documentation
 - Ensure all prerequisites are installed correctly

@@ -1,5 +1,6 @@
 import { dataPersistence } from './data-persistence'
 import { cache } from './cache'
+import type { ConversationWithStats } from './data-persistence'
 
 export interface ConversationStats {
   totalConversations: number
@@ -72,8 +73,11 @@ export class AnalyticsService {
         this.getTimePatterns(userId)
       ])
 
+      const archivedConversations = Math.max(basicStats.totalConversations - basicStats.activeConversations, 0)
+
       const stats: ConversationStats = {
         ...basicStats,
+        archivedConversations,
         messagesByEmotion: emotionStats,
         messagesByType: typeStats,
         conversationsByMonth: monthlyStats,
@@ -144,17 +148,21 @@ export class AnalyticsService {
         limit: 1000 // Get all conversations for analysis
       })
 
-      const oldestConv = conversations.length > 0
-        ? conversations.reduce((oldest, conv) =>
-            conv.startedAt < oldest.startedAt ? conv : oldest
-          )
-        : null
+      const conversationsWithStart = conversations.filter(
+        (conv): conv is ConversationWithStats & { startedAt: Date } => Boolean(conv.startedAt)
+      )
 
-      const newestConv = conversations.length > 0
-        ? conversations.reduce((newest, conv) =>
-            conv.startedAt > newest.startedAt ? conv : newest
-          )
-        : null
+      let oldestConv: (ConversationWithStats & { startedAt: Date }) | null = null
+      let newestConv: (ConversationWithStats & { startedAt: Date }) | null = null
+
+      for (const conv of conversationsWithStart) {
+        if (!oldestConv || conv.startedAt < oldestConv.startedAt) {
+          oldestConv = conv
+        }
+        if (!newestConv || conv.startedAt > newestConv.startedAt) {
+          newestConv = conv
+        }
+      }
 
       // Estimate database size (very rough)
       const estimatedSize = conversations.length * 0.1 + // ~100KB per conversation
@@ -168,11 +176,11 @@ export class AnalyticsService {
       ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
 
       const toArchive = conversations.filter(conv =>
-        conv.lastActivityAt < thirtyDaysAgo && conv.isActive
+        conv.lastActivityAt ? conv.lastActivityAt < thirtyDaysAgo && conv.isActive : false
       ).length
 
       const toDelete = conversations.filter(conv =>
-        conv.lastActivityAt < ninetyDaysAgo
+        conv.lastActivityAt ? conv.lastActivityAt < ninetyDaysAgo : false
       ).length
 
       return {
@@ -194,7 +202,7 @@ export class AnalyticsService {
   }
 
   // Private helper methods
-  private async getEmotionDistribution(userId: string): Promise<Record<string, number>> {
+  private async getEmotionDistribution(_userId: string): Promise<Record<string, number>> {
     // This would require a more complex query to aggregate emotions from messages
     // For now, return a mock distribution
     return {
@@ -207,7 +215,7 @@ export class AnalyticsService {
     }
   }
 
-  private async getMessageTypeDistribution(userId: string): Promise<Record<'text' | 'audio', number>> {
+  private async getMessageTypeDistribution(_userId: string): Promise<Record<'text' | 'audio', number>> {
     // Similar to above, would need aggregation query
     return {
       text: 80,
@@ -224,6 +232,9 @@ export class AnalyticsService {
     const monthCounts: Record<string, number> = {}
 
     conversations.forEach(conv => {
+      if (!conv.startedAt) {
+        return
+      }
       const month = conv.startedAt.toISOString().substring(0, 7) // YYYY-MM format
       monthCounts[month] = (monthCounts[month] || 0) + 1
     })
@@ -260,7 +271,7 @@ export class AnalyticsService {
     return days
   }
 
-  private async getTimePatterns(userId: string): Promise<{ mostActiveHour: number; averageDuration: number }> {
+  private async getTimePatterns(_userId: string): Promise<{ mostActiveHour: number; averageDuration: number }> {
     // This would analyze message timestamps to find patterns
     // For now, return mock data
     return {
@@ -277,7 +288,7 @@ export class AnalyticsService {
       .map(([emotion]) => emotion)
   }
 
-  private async getChattingPattern(userId: string): Promise<'morning' | 'afternoon' | 'evening' | 'night' | 'mixed'> {
+  private async getChattingPattern(_userId: string): Promise<'morning' | 'afternoon' | 'evening' | 'night' | 'mixed'> {
     // Would analyze message timestamps
     return 'evening' // Mock data
   }
@@ -378,7 +389,7 @@ export class AnalyticsService {
   }
 
   // Privacy and Data Management
-  async getPrivacyOptions(userId: string) {
+  async getPrivacyOptions(_userId: string) {
     return {
       autoDelete: {
         enabled: false,

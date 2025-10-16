@@ -178,7 +178,6 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
           <div className="flex items-center justify-center space-x-4">
             <Avatar
               size="md"
-              emotion={currentEmotion}
               className="ring-2 ring-cyan-400 ring-opacity-50"
             />
             <div className="text-center">
@@ -239,7 +238,7 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
           </motion.button>
 
           {/* Demo Response Button (for development) */}
-          {process.env.NODE_ENV === 'development' && (
+          {import.meta.env.DEV && (
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}

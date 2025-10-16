@@ -1,7 +1,6 @@
 import { WebSocket, WebSocketServer } from 'ws'
 import type { WebSocketMessage } from '../types'
 import { RealtimeManager } from './realtime-manager'
-import { AudioProcessor } from './audio-processor'
 
 interface ConnectedClient {
   id: string
@@ -11,22 +10,41 @@ interface ConnectedClient {
   lastPing: Date
 }
 
+interface RealtimeMetricsSnapshot {
+  totalSessions: number
+  activeSessions: number
+  totalAudioProcessed: number
+  averageSessionDuration: number
+  errorRate: number
+}
+
 export class VoiceWebSocketManager {
   private wss: WebSocketServer
   private clients: Map<string, ConnectedClient> = new Map()
-  private pingInterval: NodeJS.Timeout
-  private realtimeManager: RealtimeManager
+  private pingInterval: NodeJS.Timeout | null = null
+  private realtimeManager: RealtimeManager | null = null
+  private realtimeErrorMessage: string | null = null
 
   constructor(port: number = 8001) {
     this.wss = new WebSocketServer({ port })
-    this.realtimeManager = new RealtimeManager()
+
+    try {
+      this.realtimeManager = new RealtimeManager()
+      console.log('🎙️ Realtime manager initialized')
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Unknown realtime configuration error'
+      this.realtimeErrorMessage = reason
+      this.realtimeManager = null
+      console.warn(`⚠️ Realtime manager disabled: ${reason}`)
+    }
+
     this.setupWebSocketServer()
     this.startPingInterval()
     console.log(`🔌 WebSocket server started on port ${port}`)
   }
 
   private setupWebSocketServer() {
-    this.wss.on('connection', (ws: WebSocket, request) => {
+    this.wss.on('connection', (ws: WebSocket, _request) => {
       const clientId = this.generateClientId()
       const client: ConnectedClient = {
         id: clientId,
@@ -48,7 +66,7 @@ export class VoiceWebSocketManager {
       ws.on('message', (data) => {
         try {
           const message = JSON.parse(data.toString())
-          this.handleClientMessage(clientId, message)
+          void this.handleClientMessage(clientId, message)
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error)
           this.sendToClient(clientId, {
@@ -62,14 +80,14 @@ export class VoiceWebSocketManager {
       // Handle client disconnect
       ws.on('close', () => {
         console.log(`👋 Client disconnected: ${clientId}`)
-        this.realtimeManager.destroySession(clientId)
+        this.realtimeManager?.destroySession(clientId)
         this.clients.delete(clientId)
       })
 
       // Handle errors
       ws.on('error', (error) => {
         console.error(`WebSocket error for client ${clientId}:`, error)
-        this.realtimeManager.destroySession(clientId)
+        this.realtimeManager?.destroySession(clientId)
         this.clients.delete(clientId)
       })
 
@@ -87,13 +105,16 @@ export class VoiceWebSocketManager {
     })
   }
 
-  private handleClientMessage(clientId: string, message: any) {
+  private async handleClientMessage(clientId: string, message: any) {
     const client = this.clients.get(clientId)
-    if (!client) return
+    if (!client) {
+      return
+    }
+
+    const hasRealtimeSession = this.hasRealtimeSession(clientId)
 
     switch (message.type) {
       case 'auth':
-        // Authenticate client and associate with user
         client.userId = message.data.userId
         client.conversationId = message.data.conversationId
         console.log(`🔐 Client ${clientId} authenticated as user ${client.userId}`)
@@ -105,66 +126,91 @@ export class VoiceWebSocketManager {
         break
 
       case 'start_realtime':
-        // Start OpenAI Realtime session
-        this.handleStartRealtime(clientId, message.data)
+        if (!this.realtimeManager) {
+          this.sendError(clientId, this.realtimeErrorMessage ?? 'Realtime service is not configured')
+          break
+        }
+        await this.handleStartRealtime(clientId, message.data)
         break
 
       case 'audio':
-        // Handle audio data (speech-to-text)
-        this.handleAudioMessage(clientId, message.data)
+        if (hasRealtimeSession) {
+          this.realtimeManager?.updateSessionActivity(clientId)
+          break
+        }
+        await this.handleAudioMessage(clientId, message.data)
+        break
+
+      case 'audio_commit':
+      case 'audio_clear':
+      case 'cancel_response':
+        if (hasRealtimeSession) {
+          this.realtimeManager?.updateSessionActivity(clientId)
+        } else {
+          this.sendError(clientId, 'Realtime session is not active')
+        }
         break
 
       case 'text':
-        // Handle text message
-        this.handleTextMessage(clientId, message.data)
+        if (hasRealtimeSession) {
+          this.realtimeManager?.updateSessionActivity(clientId)
+          break
+        }
+        await this.handleTextMessage(clientId, message.data)
         break
 
       case 'voice_request':
-        // Handle voice synthesis request
-        this.handleVoiceRequest(clientId, message.data)
+        if (hasRealtimeSession) {
+          this.realtimeManager?.updateSessionActivity(clientId)
+          break
+        }
+        await this.handleVoiceRequest(clientId, message.data)
         break
 
       case 'emotion_update':
-        // Handle emotion state update
         this.handleEmotionUpdate(clientId, message.data)
+        if (hasRealtimeSession) {
+          this.realtimeManager?.updateSessionActivity(clientId)
+        }
         break
 
       case 'ping':
-        // Respond to ping
+        client.lastPing = new Date()
         this.sendToClient(clientId, {
           type: 'pong',
-          data: { timestamp: new Date() },
+          data: { timestamp: client.lastPing },
           timestamp: new Date(),
         })
+        if (hasRealtimeSession) {
+          this.realtimeManager?.updateSessionActivity(clientId)
+        }
         break
 
       default:
-        console.warn(`Unknown message type: ${message.type}`)
-        this.sendToClient(clientId, {
-          type: 'status',
-          data: { error: 'Unknown message type' },
-          timestamp: new Date(),
-        })
+        if (hasRealtimeSession) {
+          this.realtimeManager?.updateSessionActivity(clientId)
+          console.warn(`Unhandled realtime message type: ${message.type}`)
+        } else {
+          console.warn(`Unknown message type: ${message.type}`)
+          this.sendError(clientId, 'Unknown message type')
+        }
     }
   }
 
   private async handleStartRealtime(clientId: string, config: any) {
+    if (!this.realtimeManager) {
+      this.sendError(clientId, this.realtimeErrorMessage ?? 'Realtime service is not configured')
+      return
+    }
+
     const client = this.clients.get(clientId)
     if (!client) {
-      this.sendToClient(clientId, {
-        type: 'error',
-        data: { error: 'Client not found' },
-        timestamp: new Date(),
-      })
+      this.sendError(clientId, 'Client not found')
       return
     }
 
     if (!client.userId || !client.conversationId) {
-      this.sendToClient(clientId, {
-        type: 'error',
-        data: { error: 'Client not authenticated' },
-        timestamp: new Date(),
-      })
+      this.sendError(clientId, 'Client not authenticated')
       return
     }
 
@@ -209,19 +255,11 @@ export class VoiceWebSocketManager {
           timestamp: new Date(),
         })
       } else {
-        this.sendToClient(clientId, {
-          type: 'error',
-          data: { error: 'Failed to start realtime session' },
-          timestamp: new Date(),
-        })
+        this.sendError(clientId, 'Failed to start realtime session')
       }
     } catch (error) {
       console.error('Error starting realtime session:', error)
-      this.sendToClient(clientId, {
-        type: 'error',
-        data: { error: 'Failed to initialize realtime session' },
-        timestamp: new Date(),
-      })
+      this.sendError(clientId, 'Failed to initialize realtime session')
     }
   }
 
@@ -234,6 +272,8 @@ export class VoiceWebSocketManager {
       // 4. Convert response to speech
       // 5. Send back audio response
 
+      const audioPayloadLength = typeof audioData?.audio === 'string' ? audioData.audio.length : 0
+
       // Mock processing
       await this.simulateProcessingDelay(1000)
 
@@ -241,8 +281,10 @@ export class VoiceWebSocketManager {
       this.sendToClient(clientId, {
         type: 'text',
         data: {
-          transcription: 'Hello! I heard your voice message.',
-          confidence: 0.95,
+          transcription: audioPayloadLength > 0
+            ? `Processed voice message (${Math.round(audioPayloadLength / 1024)} KB payload).`
+            : 'Hello! I heard your voice message.',
+          confidence: audioPayloadLength > 0 ? 0.92 : 0.75,
         },
         timestamp: new Date(),
       })
@@ -283,6 +325,7 @@ export class VoiceWebSocketManager {
       ]
 
       const randomResponse = responses[Math.floor(Math.random() * responses.length)]
+      const userText = typeof textData?.text === 'string' ? textData.text : ''
 
       this.sendToClient(clientId, {
         type: 'text',
@@ -290,6 +333,7 @@ export class VoiceWebSocketManager {
           text: randomResponse,
           emotion: 'supportive',
           sender: 'ai',
+          acknowledgedText: userText,
         },
         timestamp: new Date(),
       })
@@ -380,6 +424,18 @@ export class VoiceWebSocketManager {
     return sent
   }
 
+  private hasRealtimeSession(clientId: string): boolean {
+    return this.realtimeManager?.hasActiveSession(clientId) ?? false
+  }
+
+  private sendError(clientId: string, error: string) {
+    this.sendToClient(clientId, {
+      type: 'error',
+      data: { error },
+      timestamp: new Date(),
+    })
+  }
+
   private generateClientId(): string {
     return `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   }
@@ -422,29 +478,48 @@ export class VoiceWebSocketManager {
   }
 
   public getRealtimeSessionInfo(clientId: string) {
+    if (!this.realtimeManager) {
+      return null
+    }
+
     return this.realtimeManager.getSessionInfo(clientId)
   }
 
   public getAllRealtimeSessions() {
+    if (!this.realtimeManager) {
+      return []
+    }
+
     return this.realtimeManager.getAllActiveSessions()
   }
 
-  public getRealtimeMetrics() {
+  public getRealtimeMetrics(): RealtimeMetricsSnapshot {
+    if (!this.realtimeManager) {
+      return {
+        totalSessions: 0,
+        activeSessions: 0,
+        totalAudioProcessed: 0,
+        averageSessionDuration: 0,
+        errorRate: 0,
+      }
+    }
+
     return this.realtimeManager.getMetrics()
   }
 
   public close() {
     if (this.pingInterval) {
       clearInterval(this.pingInterval)
+      this.pingInterval = null
     }
 
-    for (const [clientId, client] of this.clients) {
+    for (const [_clientId, client] of this.clients) {
       if (client.ws.readyState === WebSocket.OPEN) {
         client.ws.close()
       }
     }
 
-    this.realtimeManager.shutdown()
+    this.realtimeManager?.shutdown()
     this.wss.close()
     console.log('🔌 WebSocket server closed')
   }

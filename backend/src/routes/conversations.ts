@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
-import type { ApiResponse } from '../types'
+import type { ApiResponse, EmotionType } from '../types'
 import { dataPersistence } from '../services/data-persistence'
 import { cache } from '../services/cache'
-import type { ConversationFilter, MessageFilter, ExportOptions } from '../services/data-persistence'
+import type { ExportOptions } from '../services/data-persistence'
 
 const conversationRoutes = new Hono()
 
@@ -339,7 +339,11 @@ conversationRoutes.get('/:id/messages', async (c) => {
     const offset = c.req.query('offset') ? parseInt(c.req.query('offset')!) : 0
     const sender = c.req.query('sender') as 'user' | 'ai' | undefined
     const type = c.req.query('type') as 'text' | 'audio' | undefined
-    const emotion = c.req.query('emotion')
+    const emotionParam = c.req.query('emotion')
+    const allowedEmotions: ReadonlyArray<EmotionType> = ['happy', 'sad', 'excited', 'calm', 'thoughtful', 'playful']
+    const emotion = emotionParam && allowedEmotions.includes(emotionParam as EmotionType)
+      ? (emotionParam as EmotionType)
+      : undefined
 
     // Check cache first
     const cachedMessages = cache.getCachedMessages(conversationId, offset, limit)

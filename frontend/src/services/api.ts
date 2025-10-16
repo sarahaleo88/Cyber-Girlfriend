@@ -1,6 +1,6 @@
 // API service for backend communication
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_BASE_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000'
 
 export interface ApiResponse<T = any> {
   success: boolean

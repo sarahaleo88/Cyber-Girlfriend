@@ -338,7 +338,6 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
                   '0 10px 25px rgba(0, 255, 255, 0.3)',
                 ];
               case 'active':
-              case 'recording':
                 return [
                   '0 10px 25px rgba(0, 255, 255, 0.4)',
                   '0 15px 35px rgba(255, 0, 255, 0.4)',

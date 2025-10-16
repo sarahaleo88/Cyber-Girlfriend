@@ -75,8 +75,17 @@ export interface VoiceResponse {
   emotion: EmotionType;
 }
 
+export type WebSocketMessageType =
+  | 'audio'
+  | 'text'
+  | 'emotion'
+  | 'status'
+  | 'realtime_started'
+  | 'error'
+  | 'pong'
+
 export interface WebSocketMessage {
-  type: 'audio' | 'text' | 'emotion' | 'status';
+  type: WebSocketMessageType;
   data: any;
   timestamp: Date;
 }
@@ -86,4 +95,5 @@ export interface ApiResponse<T = any> {
   data?: T;
   error?: string;
   timestamp: Date;
+  cached?: boolean;
 }

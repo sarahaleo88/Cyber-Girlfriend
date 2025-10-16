@@ -5,11 +5,9 @@ import type {
   ProxySessionConfig,
   ClientToServerEvent,
   ServerToClientEvent,
-  OpenAIRealtimeSession,
   SessionUpdateEvent,
   InputAudioBufferAppendEvent,
   ResponseCreateEvent,
-  VoiceType,
 } from '../types/openai-realtime';
 
 interface CircuitBreakerState {
@@ -297,7 +295,7 @@ Current conversation context:
 
   private handleClientText(textData: { text: string }) {
     // For text messages, we'll create a conversation item and trigger a response
-    const createItemEvent = {
+    const createItemEvent: ClientToServerEvent = {
       type: 'conversation.item.create',
       item: {
         type: 'message',

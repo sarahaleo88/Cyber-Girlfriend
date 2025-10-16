@@ -2,8 +2,7 @@ import { WebSocket } from 'ws';
 import { OpenAIRealtimeProxy } from './openai-realtime';
 import type {
   OpenAIRealtimeConfig,
-  ProxySessionConfig,
-  VoiceType
+  ProxySessionConfig
 } from '../types/openai-realtime';
 import type { PersonalityTraits, VoiceSettings } from '../types';
 
@@ -28,7 +27,7 @@ export class RealtimeManager {
   private activeSessions: Map<string, ActiveSession> = new Map();
   private sessionsByUser: Map<string, Set<string>> = new Map();
   private openaiConfig: OpenAIRealtimeConfig;
-  private cleanupInterval: NodeJS.Timeout;
+  private cleanupInterval: NodeJS.Timeout | null = null;
   private metrics: SessionMetrics;
 
   constructor() {
@@ -166,6 +165,10 @@ export class RealtimeManager {
 
     // Update metrics
     this.metrics.activeSessions = this.activeSessions.size;
+  }
+
+  public hasActiveSession(clientId: string): boolean {
+    return this.activeSessions.has(clientId);
   }
 
   public updateSessionActivity(clientId: string): void {
@@ -315,6 +318,7 @@ export class RealtimeManager {
 
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
     }
 
     // Close all active sessions

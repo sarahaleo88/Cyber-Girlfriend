@@ -315,7 +315,7 @@ export class AudioManager {
     // If recording and have callback, send PCM16 data
     if (this.isRecording && this.recordingCallback) {
       const pcm16Data = this.convertToPCM16(channelData);
-      this.recordingCallback(pcm16Data.buffer);
+      this.recordingCallback(pcm16Data.buffer as ArrayBuffer);
     }
   }
 

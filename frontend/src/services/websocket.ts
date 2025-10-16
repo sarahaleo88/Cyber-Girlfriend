@@ -1,7 +1,7 @@
 // WebSocket service for real-time communication
 
 export interface WebSocketMessage {
-  type: 'audio' | 'text' | 'emotion' | 'status' | 'auth' | 'ping' | 'pong'
+  type: 'audio' | 'text' | 'emotion' | 'status' | 'auth' | 'ping' | 'pong' | 'voice_request' | 'emotion_update'
   data: any
   timestamp: Date
 }

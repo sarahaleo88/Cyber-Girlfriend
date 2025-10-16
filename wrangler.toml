@@ -1,0 +1,42 @@
+# Cloudflare Workers Configuration for Cyber Girlfriend
+
+name = "cyber-girlfriend"
+main = "backend/dist/index.js"
+compatibility_date = "2024-01-01"
+node_compat = true
+
+# Account details (replace with your own)
+# account_id = "your-account-id"
+# workers_dev = true
+
+[build]
+command = "npm run build"
+
+[build.upload]
+format = "service-worker"
+
+# Environment variables (set these in Cloudflare dashboard or use wrangler secret)
+[vars]
+ENVIRONMENT = "production"
+NODE_ENV = "production"
+
+# KV Namespaces for data storage (optional)
+# [[kv_namespaces]]
+# binding = "CONVERSATIONS"
+# id = "your-kv-namespace-id"
+
+# Durable Objects for WebSocket sessions (optional)
+# [[durable_objects.bindings]]
+# name = "WEBSOCKET_SESSIONS"
+# class_name = "WebSocketSession"
+# script_name = "cyber-girlfriend"
+
+# Routes (configure your custom domain)
+# [[routes]]
+# pattern = "cybergirlfriend.example.com/*"
+# zone_name = "example.com"
+
+# Compatibility flags
+[compatibility_flags]
+nodejs_compat = true
+

@@ -26,6 +26,7 @@ const Avatar: React.FC<AvatarProps> = ({ size = 'lg', className = '' }) => {
     calm: 'from-green-400 to-blue-500',
     thoughtful: 'from-purple-400 to-indigo-500',
     playful: 'from-pink-400 to-purple-500',
+    friendly: 'from-cyan-400 to-blue-500',
   };
 
   const pulseVariants = {

@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
-import type { VoiceRequest, VoiceResponse, ApiResponse } from '../types'
+import type { VoiceResponse, ApiResponse } from '../types'
 
 const voiceRoutes = new Hono()
 
@@ -39,7 +39,8 @@ voiceRoutes.post('/synthesize', async (c) => {
 
     // Mock voice synthesis - in production, this would call OpenAI TTS API
     const mockAudioUrl = `https://api.cyber-girlfriend.com/audio/${crypto.randomUUID()}.mp3`
-    const estimatedDuration = Math.ceil(text.length / 10) // Rough estimate: 10 chars per second
+    const charsPerSecond = Math.max(4, Math.round(10 * voiceSettings.speed))
+    const estimatedDuration = Math.max(1, Math.ceil(text.length / charsPerSecond))
 
     const response: VoiceResponse = {
       audioUrl: mockAudioUrl,
@@ -77,6 +78,9 @@ voiceRoutes.post('/transcribe', async (c) => {
 
     const { audioData, format } = validation.data
 
+    // Estimate length from payload size to keep TypeScript satisfied
+    const approxDurationSeconds = Math.max(1, Math.round(audioData.length / (format === 'wav' ? 64000 : 48000)))
+
     // Mock transcription - in production, this would call OpenAI Whisper API
     const mockTranscriptions = [
       "Hi there! How are you doing today?",
@@ -91,9 +95,9 @@ voiceRoutes.post('/transcribe', async (c) => {
 
     const randomTranscription = mockTranscriptions[Math.floor(Math.random() * mockTranscriptions.length)]
 
-    return c.json<ApiResponse<{ text: string }>>({
+    return c.json<ApiResponse<{ text: string; format: string; approxDurationSeconds: number }>>({
       success: true,
-      data: { text: randomTranscription },
+      data: { text: randomTranscription, format, approxDurationSeconds },
       timestamp: new Date()
     })
   } catch (error) {

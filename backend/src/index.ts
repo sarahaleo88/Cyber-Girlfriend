@@ -2,7 +2,6 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { prettyJSON } from 'hono/pretty-json'
-import { serve } from 'bun'
 import dotenv from 'dotenv'
 
 // Import routes
@@ -10,6 +9,7 @@ import conversationRoutes from './routes/conversations'
 import voiceRoutes from './routes/voice'
 import userRoutes from './routes/users'
 import analyticsRoutes from './routes/analytics'
+import personalityRoutes from './routes/personality'
 
 // Import services
 import { VoiceWebSocketManager } from './services/websocket'
@@ -140,6 +140,7 @@ app.route('/api/conversations', conversationRoutes)
 app.route('/api/voice', voiceRoutes)
 app.route('/api/users', userRoutes)
 app.route('/api/analytics', analyticsRoutes)
+app.route('/api/personality', personalityRoutes)
 
 // 404 handler
 app.notFound((c) => {
