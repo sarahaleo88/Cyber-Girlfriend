@@ -1,5 +1,6 @@
 import { WebSocket } from 'ws';
 import { OpenAIRealtimeProxy } from './openai-realtime';
+import { OpenAIRestFallback } from './openai-rest-fallback';
 import type {
   OpenAIRealtimeConfig,
   ProxySessionConfig
@@ -7,12 +8,13 @@ import type {
 import type { PersonalityTraits, VoiceSettings } from '../types';
 
 interface ActiveSession {
-  proxy: OpenAIRealtimeProxy;
+  proxy: OpenAIRealtimeProxy | OpenAIRestFallback;
   clientId: string;
   userId: string;
   conversationId: string;
   startedAt: Date;
   lastActivity: Date;
+  usingFallback: boolean;
 }
 
 interface SessionMetrics {
@@ -79,22 +81,37 @@ export class RealtimeManager {
       const sessionConfig: ProxySessionConfig = {
         userId: config.userId,
         conversationId: config.conversationId,
-        personalityInstructions,
-        voiceSettings: {
-          voice: config.voiceSettings.voice,
-          speed: config.voiceSettings.speed,
-          pitch: config.voiceSettings.pitch,
-        },
+        instructions: personalityInstructions,
+        voice: config.voiceSettings.voice,
+        temperature: this.openaiConfig.temperature,
+        modalities: ['text', 'audio'],
       };
 
-      // Create OpenAI Realtime Proxy
-      const proxy = new OpenAIRealtimeProxy(clientWs, this.openaiConfig, sessionConfig);
+      let proxy: OpenAIRealtimeProxy | OpenAIRestFallback;
+      let connected = false;
+      let usingFallback = false;
 
-      // Attempt connection
-      const connected = await proxy.connect();
-      if (!connected) {
-        this.sendErrorToClient(clientWs, 'Failed to connect to OpenAI Realtime API');
-        return false;
+      // Try WebSocket first
+      console.log(`🔗 Attempting WebSocket connection for session ${clientId}...`);
+      const wsProxy = new OpenAIRealtimeProxy(clientWs, this.openaiConfig, sessionConfig);
+      connected = await wsProxy.connect();
+
+      if (connected) {
+        console.log(`✅ WebSocket connection successful for session ${clientId}`);
+        proxy = wsProxy;
+      } else {
+        // Fall back to REST API
+        console.log(`⚠️ WebSocket failed, using REST API fallback for session ${clientId}`);
+        const restProxy = new OpenAIRestFallback(clientWs, this.openaiConfig, sessionConfig);
+        connected = await restProxy.connect();
+
+        if (!connected) {
+          this.sendErrorToClient(clientWs, 'Failed to connect to OpenAI API');
+          return false;
+        }
+
+        proxy = restProxy;
+        usingFallback = true;
       }
 
       // Store session
@@ -105,6 +122,7 @@ export class RealtimeManager {
         conversationId: config.conversationId,
         startedAt: new Date(),
         lastActivity: new Date(),
+        usingFallback,
       };
 
       this.activeSessions.set(clientId, session);
@@ -119,7 +137,8 @@ export class RealtimeManager {
       this.metrics.totalSessions += 1;
       this.metrics.activeSessions = this.activeSessions.size;
 
-      console.log(`🎙️ Created realtime session for client ${clientId}, user ${config.userId}`);
+      const connectionType = usingFallback ? 'REST API fallback' : 'WebSocket';
+      console.log(`🎙️ Created realtime session for client ${clientId}, user ${config.userId} (${connectionType})`);
 
       // Setup cleanup on client disconnect
       clientWs.on('close', () => {

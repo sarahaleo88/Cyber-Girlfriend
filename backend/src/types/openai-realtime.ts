@@ -330,8 +330,14 @@ export interface OpenAIRealtimeConfig {
 export interface ProxySessionConfig {
   userId: string;
   conversationId: string;
-  personalityInstructions: string;
-  voiceSettings: {
+  personalityInstructions?: string;
+  instructions?: string;
+  voice?: VoiceType;
+  temperature?: number;
+  modalities?: string[];
+  model?: string;
+  turnDetection?: TurnDetection;
+  voiceSettings?: {
     voice: VoiceType;
     speed: number;
     pitch: number;
