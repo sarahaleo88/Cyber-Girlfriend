@@ -79,28 +79,78 @@
 
 ### 测试项目
 
-#### ⚠️ OpenAI API Key 配置
-- **状态**: 未配置
-- **当前值**: `your_openai_api_key_here`
-- **需要**: 真实的 OpenAI API key
-- **阻塞**: 无法测试实际的 AI 对话功能
+#### ✅ OpenAI API Key 配置
+- **状态**: 已配置并验证
+- **API Key**: sk-proj-dtbwvWhNqrV-... (已配置)
+- **验证结果**: API key 有效，可以访问 OpenAI API
+- **Realtime API 访问**: ✅ 已确认有权限
 
 #### ✅ WebSocket 服务器
 - **状态**: 通过
-- **验证**: WebSocket 服务器在 8001 端口启动
+- **验证**: WebSocket 服务器在 8001 端口启动成功
 
-#### ❓ OpenAI Realtime API 连接
-- **状态**: 无法测试
-- **原因**: 需要有效的 API key
+#### ✅ OpenAI API 连接测试
+- **状态**: 通过
+- **测试结果**:
+  - ✅ API key 格式正确 (Project key: sk-proj-...)
+  - ✅ API key 有效 (可以列出 99 个模型)
+  - ✅ 找到 Realtime 模型: `gpt-realtime-mini`
+  - ✅ Realtime API 会话创建成功 (Session ID: sess_CRAo8l9EsVv5opl5SEhKe)
+
+#### ⚠️ WebSocket 连接
+- **状态**: 部分问题
+- **问题**: 直接 WebSocket 连接失败 (Connection ended - code 1006)
+- **原因分析**:
+  - 可能需要使用 ephemeral key 而不是直接使用 API key
+  - 或者需要先创建 session 然后使用 client_secret
+  - 网络或防火墙问题
+- **已验证**: REST API 可以成功创建 Realtime session
 
 #### ❓ 音频流
-- **状态**: 无法测试
-- **原因**: 需要有效的 API key
+- **状态**: 待测试
+- **原因**: WebSocket 连接问题需要先解决
+
+### 测试脚本创建
+- ✅ `backend/test-api-key-validity.ts` - API key 验证脚本
+- ✅ `backend/test-openai-integration.ts` - 完整集成测试脚本
+- ✅ `backend/test-websocket-connection.ts` - WebSocket 连接测试
+
+### 测试日志
+
+**Test 1: API Key Validity**
+```
+✅ API key format: Project key (sk-proj-...)
+✅ API key is valid! Found 99 models
+✅ Realtime model found: gpt-realtime-mini
+✅ Realtime API access confirmed!
+   Session ID: sess_CRAo8l9EsVv5opl5SEhKe
+```
+
+**Test 2: WebSocket Connection**
+```
+✅ Session created: sess_CRAok1Inq2atMgGFGUyIC
+   Client secret: ek_68f0825a2d3081918...
+❌ WebSocket error: Connection ended (code 1006)
+```
 
 ### Issue #3 总结
-**状态**: ⚠️ **部分完成 - 需要 API key 测试**  
-**完成度**: 50% (代码已实现，但未测试)  
-**阻塞因素**: 需要有效的 OpenAI API key
+**状态**: ⚠️ **大部分完成 - WebSocket 连接需要调试**
+**完成度**: 75% (API key 配置完成，REST API 工作正常，WebSocket 需要调试)
+**已完成**:
+- ✅ API key 配置和验证
+- ✅ REST API 连接成功
+- ✅ Realtime session 创建成功
+- ✅ 后端 WebSocket 服务器运行正常
+
+**待解决**:
+- ⚠️ OpenAI Realtime WebSocket 连接问题
+- ❓ 音频流测试 (依赖 WebSocket 连接)
+
+**建议**:
+1. 检查代码中的 WebSocket 连接实现
+2. 确认是否需要使用 ephemeral key
+3. 可能需要更新 WebSocket URL 或连接方式
+4. 考虑使用 REST API 作为备选方案
 
 ---
 
@@ -239,11 +289,16 @@
 
 ## 总体测试总结
 
-### 可以立即关闭的 Issues
-1. ✅ **Issue #2: Project Setup** - 100% 完成，所有验收标准已满足
+### 已关闭的 Issues
+1. ✅ **Issue #2: Project Setup** - 100% 完成，所有验收标准已满足，已在 GitHub 上关闭
+
+### 部分完成的 Issues
+2. ⚠️ **Issue #3: OpenAI Integration** - 75% 完成
+   - ✅ API key 已配置并验证
+   - ✅ REST API 连接成功
+   - ⚠️ WebSocket 连接需要调试
 
 ### 需要进一步测试的 Issues
-2. ⚠️ **Issue #3: OpenAI Integration** - 需要 API key
 3. ⚠️ **Issue #4: Web Audio API** - 需要浏览器测试
 4. ⚠️ **Issue #5: Voice Button** - 需要浏览器测试
 5. ⚠️ **Issue #6: Conversation Interface** - 需要浏览器测试
@@ -251,22 +306,50 @@
 7. ⚠️ **Issue #8: Data Persistence** - 需要功能测试
 8. ⚠️ **Issue #9: PWA** - 需要浏览器测试
 
+### 已完成的工作
+
+1. **✅ API Key 配置**
+   - OpenAI API key 已配置到 backend/.env
+   - API key 验证通过
+   - Realtime API 访问权限确认
+
+2. **✅ 测试脚本创建**
+   - test-api-key-validity.ts - API key 验证
+   - test-openai-integration.ts - 完整集成测试
+   - test-websocket-connection.ts - WebSocket 连接测试
+
+3. **✅ 服务器重启**
+   - 开发服务器已重启并加载新的 API key
+
+4. **✅ CSS 警告修复**
+   - 修复了 @import 顺序警告
+
 ### 下一步行动
 
-1. **修复 CSS 警告** (5 分钟)
+1. **调试 WebSocket 连接** (高优先级)
+   - 检查 backend/src/services/openai-realtime.ts 中的连接逻辑
+   - 确认是否需要使用 ephemeral key
+   - 更新 WebSocket URL 或连接方式
+
 2. **手动测试浏览器 UI** (30 分钟)
    - 检查应用是否加载
    - 测试语音按钮
    - 测试设置面板
    - 测试个性选择器
    - 测试导出功能
-3. **配置 OpenAI API Key** (如果用户提供)
-4. **测试完整的语音对话流程**
-5. **记录所有发现的 bug**
-6. **修复 bug**
-7. **关闭已验证的 issues**
+
+3. **测试完整的语音对话流程** (WebSocket 修复后)
+
+4. **记录所有发现的 bug**
+
+5. **修复 bug**
+
+6. **关闭已验证的 issues**
 
 ---
 
-**当前状态**: 应用程序成功启动，但需要浏览器交互测试来验证功能。
+**当前状态**:
+- ✅ 1/9 issues 已关闭
+- ⚠️ API key 已配置，REST API 工作正常，WebSocket 连接需要调试
+- ⚠️ 应用程序成功启动，需要浏览器交互测试来验证 UI 功能
 
